@@ -1,7 +1,10 @@
 // server.js
 
 // Importieren der erforderlichen Module
+// Importieren von Express für die Erstellung des Servers
 import express from 'express';
+// Importieren des Ressourcen-Routers
+// Dieser Router enthält die Routen für den Zugriff auf Ressourcen
 import resourcesRouter from './routes/resources.js';
 
 // Festlegen des Ports für den Server
