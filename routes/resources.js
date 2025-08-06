@@ -32,6 +32,7 @@ router.get('/', (req, res) => {
     res.json(resources);    // Senden der Ressourcen als JSON-Antwort zurück an den Client
     // Erfolgreiche Antwort mit den Ressourcen
   } catch (error) {
+    console.error('Fehler beim Abrufen der Ressourcen:', error);
     res.status(500).json({ error: 'Failed to read resources' });
   }
 });
@@ -52,6 +53,7 @@ router.get('/:id', (req, res) => {
     // Erfolgreiche Antwort mit der gefundenen Ressource oder Fehlermeldung
   } catch (error) {
     // Fehlerbehandlung für das Lesen der Datei
+    console.error('Fehler beim Aktualisieren der Ressource:', error);
     res.status(500).json({ error: 'Fehler beim Lesen der Ressource.' });
   }
 });
@@ -93,9 +95,57 @@ router.post('/', (req, res) => {
 
   } catch (error) {
     // Fehlerbehandlung für das Schreiben der Datei oder andere unerwartete Fehler
+    console.error('Fehler beim Aktualisieren der Ressource:', error);
     res.status(500).json({ error: 'Fehler beim Erstellen der Ressource.' });
   }
 });
+
+
+router.put('/:id', (req, res) => {  
+  try {
+    const resourceId = req.params.id; // Extrahieren der Ressourcendaten anhand der ID aus den URL-Parametern
+    const updatedData = req.body; // Extrahieren der aktualisierten Ressourcendaten aus dem Request-Body
+    
+    // Überprüfen, ob die aktualisierten Daten im Request-Body vorhanden sind
+    // Wenn nicht, wird eine Fehlermeldung mit dem Status 400 (Bad Request) zurückgegeben
+    if (!updatedData || Object.keys(updatedData).length === 0) {
+        return res.status(400).json({error: "Datei hat keinen Inhalt!"});
+    };
+
+    // Lesen der aktuellen Ressourcen aus der Datei
+    const data = readFileSync(data_file, 'utf8');
+    const resources = JSON.parse(data);
+
+    // Suchen der Ressource mit der angegebenen ID
+    const resourceIndex = resources.findIndex(r => String(r.id) === resourceId);
+
+    if (resourceIndex === -1) {
+      // Wenn die Ressource nicht gefunden wurde, wird eine Fehlermeldung mit dem Status 404 (Not Found) zurückgegeben
+      return res.status(404).json({ error: `Ressource mit der ID ${resourceId} nicht gefunden!` });
+    }
+    
+    // Aktualisieren der gefundenen Ressource mit den neuen Daten
+    resources[resourceIndex] = {
+      ...resources[resourceIndex], // Beibehalten der bestehenden Felder
+      ...updatedData, // Aktualisieren mit den neuen Daten aus dem Request-Body
+    };
+
+    // Optional: Generieren einer neuen ID, wenn die ID aktualisiert werden soll
+    // resources[resourceIndex].id = uuidv4(); // Uncomment if you want to change the ID
+    
+    // Schreiben der aktualisierten Ressourcen zurück in die Datei
+    writeFileSync(data_file, JSON.stringify(resources, null, 2), 'utf8');
+
+    // Erfolgreiche Antwort mit der aktualisierten Ressource
+    res.status(200).json(resources[resourceIndex]);
+
+  } catch (error) {
+    // Fehlerbehandlung für das Lesen oder Schreiben der Datei
+    res.status(500).json({ error: 'Fehler beim Aktualisieren der Ressource.' });
+  }
+});
+
+
 
 // Exportieren des Routers
 // Damit kann dieser Router in der server.js-Datei importiert und verwendet werden
