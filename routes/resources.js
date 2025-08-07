@@ -33,8 +33,8 @@ const __dirname = path.dirname(__filename); // Erstellen des Pfads zur JSON-Date
 const data_file = path.join(__dirname, '../data', 'resources.json'); // Pfad zur JSON-Datei mit den Ressourcen
 
 // Variablen für die Feedback-Datei
-const feedbackFile = join(process.cwd(), 'data', 'feedback.json');
-const resourcesFile = join(process.cwd(), 'data', 'resources.json');
+const feedback_file = path.join(__dirname, '../data/feedback.json');
+const resourcesFile = join(process.cwd(), '../data/resources.json');
 
 
 
@@ -232,10 +232,11 @@ router.post('/:resourceId/feedback', validateFeedback, (req, res, next) => {
     // Erstellen eines neuen Feedback-Objekts mit der Ressource-ID, dem Text, dem Benutzernamen und einem Zeitstempel
     // Der Benutzername wird auf 'anonym' gesetzt, wenn er nicht angegeben ist
     const newFeedback = {
-      resourceId,
-      feedback_text,
-      user_name: user_name?.trim() || 'anonym',
-      timestamp: new Date().toISOString()
+      feedbackId: uuidv4(), // Generieren einer eindeutigen ID für das Feedback
+      resourceId, // Verknüpfen des Feedbacks mit der Ressource-ID
+      feedback_text, // Der Feedback-Text wird aus dem Request-Body übernommen
+      user_name: user_name?.trim() || 'anonym', // Der Benutzername wird auf 'anonym' gesetzt, wenn er nicht angegeben ist
+      timestamp: new Date().toISOString() // Aktueller Zeitstempel im ISO-Format
     };
 
     const feedbacks = JSON.parse(readFileSync(feedbackFile, 'utf8')); // Lesen der bestehenden Feedbacks aus der Datei
@@ -254,6 +255,47 @@ router.post('/:resourceId/feedback', validateFeedback, (req, res, next) => {
     next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
   }
 });
+
+
+router.put('/:resourceId/feedback/:feedbackId', validateFeedback, (req, res, next) => {
+  const { resourceId, feedbackId } = req.params; // Extrahieren der Ressource-ID und der Feedback-ID aus den URL-Parametern
+  const { feedback_text, user_name } = req.body; // Extrahieren des Feedback-Textes und des Benutzernamens aus dem Request-Body
+
+  try {
+    const data = readFileSync(feedback_file, 'utf8'); // Lesen der Feedback-Datei, die das Feedback enthält
+    const feedback = JSON.parse(data); // Parsen der JSON-Daten in ein JavaScript-Objekt
+
+    // Überprüfen, ob die Ressource mit der angegebenen ID existiert
+    const feedbackIndex = feedback.findIndex(
+      f => f.resourceId === resourceId && f.feedbackId === feedbackId
+    );
+
+    // Wenn das Feedback nicht gefunden wurde, wird eine Fehlermeldung mit dem Status 404 (Not Found) zurückgegeben
+    // Dies bedeutet, dass entweder die Ressource oder das Feedback nicht existiert
+    if (feedbackIndex === -1) {
+      return res.status(404).json({ error: 'Feedback nicht gefunden.' });
+    }
+
+    // Feedback aktualisieren
+    feedback[feedbackIndex] = { // Aktualisieren des Feedbacks mit den neuen Daten
+      ...feedback[feedbackIndex], // Beibehalten der bestehenden Felder
+      feedback_text, // Aktualisieren des Feedback-Textes
+      updatedAt: new Date().toISOString() // Aktueller Zeitstempel im ISO-Format
+    };
+
+    writeFileSync(feedback_file, JSON.stringify(feedback, null, 2), 'utf8'); // Schreiben der aktualisierten Feedbacks zurück in die Datei
+
+    // Erfolgreiche Antwort mit dem aktualisierten Feedback
+    // Der Status 200 (OK) wird zurückgegeben, um anzuzeigen, dass das Feedback erfolgreich aktualisiert wurde
+    // Die Antwort enthält das aktualisierte Feedback-Objekt
+    res.status(200).json(feedback[feedbackIndex]);
+
+  } catch (error) {
+      console.error('Fehler beim Aktualisieren des Feedbacks:', error); // Protokollieren des Fehlers im Server-Log
+      next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
+  }
+});
+
 
 // Exportieren des Routers, damit er in anderen Dateien verwendet werden kann
 // Dies ermöglicht es, die Routen in der server.js-Datei zu verwenden.
