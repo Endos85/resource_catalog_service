@@ -5,7 +5,7 @@
 import express from 'express';
 // Importieren von Funktionen zum Lesen und Schreiben von Dateien
 // Diese Funktionen werden verwendet, um die Ressourcen aus einer JSON-Datei zu lesen und zu schreiben
-import { readFileSync, writeFileSync } from 'fs';
+import fs, { readFileSync, writeFileSync } from 'fs';
 // Importieren von path für die Handhabung von Dateipfaden
 // Dies ist nützlich, um den Pfad zur JSON-Datei plattformunabhängig zu erstellen
 import path from 'path';
@@ -33,8 +33,8 @@ const __dirname = path.dirname(__filename); // Erstellen des Pfads zur JSON-Date
 const data_file = path.join(__dirname, '../data', 'resources.json'); // Pfad zur JSON-Datei mit den Ressourcen
 
 // Variablen für die Feedback-Datei
-const feedback_file = path.join(__dirname, '../data/feedback.json');
-const resourcesFile = join(process.cwd(), '../data/resources.json');
+const feedbackFile = path.join(__dirname, '../data', 'feedback.json');
+const resourcesFile = path.join(__dirname, '../data', 'resources.json');
 
 
 
@@ -215,7 +215,7 @@ router.get('/search', (req, res, next) => {
 
 // Route zum Speichern von Feedback für eine Ressource
 // Diese Route wird verwendet, um Feedback für eine bestimmte Ressource zu speichern
-// Die Ressource-ID wird aus den URL-Parametern extrahiert und das Feedback aus dem Request-Body
+// Die Ressource-ID wird aus den URL-Parametern extrahiert und die Feedback-Daten aus dem Request-Body
 router.post('/:resourceId/feedback', validateFeedback, (req, res, next) => {
   const { resourceId } = req.params; // Extrahieren der Ressource-ID aus den URL-Parametern
   const { feedback_text, user_name } = req.body; // Extrahieren des Feedback-Textes und des Benutzernamens aus dem Request-Body
@@ -257,12 +257,15 @@ router.post('/:resourceId/feedback', validateFeedback, (req, res, next) => {
 });
 
 
+// Route zum Aktualisieren von Feedback für eine Ressource
+// Diese Route wird verwendet, um Feedback für eine bestimmte Ressource zu aktualisieren
+// Die Ressource-ID und die Feedback-ID werden aus den URL-Parametern extrahiert und die neuen Daten aus dem Request-Body
 router.put('/:resourceId/feedback/:feedbackId', validateFeedback, (req, res, next) => {
   const { resourceId, feedbackId } = req.params; // Extrahieren der Ressource-ID und der Feedback-ID aus den URL-Parametern
   const { feedback_text, user_name } = req.body; // Extrahieren des Feedback-Textes und des Benutzernamens aus dem Request-Body
 
   try {
-    const data = readFileSync(feedback_file, 'utf8'); // Lesen der Feedback-Datei, die das Feedback enthält
+    const data = readFileSync(feedbackFile, 'utf8'); // Lesen der Feedback-Datei, die das Feedback enthält
     const feedback = JSON.parse(data); // Parsen der JSON-Daten in ein JavaScript-Objekt
 
     // Überprüfen, ob die Ressource mit der angegebenen ID existiert
@@ -280,10 +283,11 @@ router.put('/:resourceId/feedback/:feedbackId', validateFeedback, (req, res, nex
     feedback[feedbackIndex] = { // Aktualisieren des Feedbacks mit den neuen Daten
       ...feedback[feedbackIndex], // Beibehalten der bestehenden Felder
       feedback_text, // Aktualisieren des Feedback-Textes
+      user_name: user_name?.trim() || feedback[feedbackIndex].user_name, // Benutzername aktualisieren, falls angegeben
       updatedAt: new Date().toISOString() // Aktueller Zeitstempel im ISO-Format
     };
 
-    writeFileSync(feedback_file, JSON.stringify(feedback, null, 2), 'utf8'); // Schreiben der aktualisierten Feedbacks zurück in die Datei
+    writeFileSync(feedbackFile, JSON.stringify(feedback, null, 2), 'utf8'); // Schreiben der aktualisierten Feedbacks zurück in die Datei
 
     // Erfolgreiche Antwort mit dem aktualisierten Feedback
     // Der Status 200 (OK) wird zurückgegeben, um anzuzeigen, dass das Feedback erfolgreich aktualisiert wurde
@@ -293,6 +297,48 @@ router.put('/:resourceId/feedback/:feedbackId', validateFeedback, (req, res, nex
   } catch (error) {
       console.error('Fehler beim Aktualisieren des Feedbacks:', error); // Protokollieren des Fehlers im Server-Log
       next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
+  }
+});
+
+
+// Route zum Löschen von Feedback für eine Ressource
+// Diese Route wird verwendet, um Feedback für eine bestimmte Ressource zu löschen
+// Die Ressource-ID und die Feedback-ID werden aus den URL-Parametern extrahiert
+router.delete('/:resourceId/feedback/:feedbackId', (req, res, next) => {
+  const { resourceId, feedbackId } = req.params; // Extrahieren der Ressource-ID und der Feedback-ID aus den URL-Parametern
+
+  try {
+    const data = readFileSync(feedbackFile, 'utf8'); // Lesen der Feedback-Datei, die das Feedback enthält
+    let feedbackList = JSON.parse(data); // Parsen der JSON-Daten in ein JavaScript-Objekt
+
+    const initialLength = feedbackList.length; // Speichern der ursprünglichen Länge der Feedback-Liste, um zu überprüfen, ob das Feedback existiert
+
+    // Suchen des Feedbacks mit der angegebenen Ressource-ID und Feedback-ID
+    // Wenn das Feedback gefunden wird, wird es aus der Liste entfernt
+    // Wenn das Feedback nicht gefunden wird, bleibt die Länge der Liste unverändert
+    feedbackList = feedbackList.filter(
+      f => !(f.resourceId === resourceId && f.feedbackId === feedbackId)
+    );
+
+    // Überprüfen, ob das Feedback mit der angegebenen ID gefunden wurde
+    // Wenn die Länge der Liste unverändert ist, bedeutet dies, dass das Feedback nicht gefunden wurde
+    // In diesem Fall wird eine Fehlermeldung mit dem Status 404 (Not Found) zurückgegeben
+    if (feedbackList.length === initialLength) {
+      return res.status(404).json({ error: 'Feedback nicht gefunden.' });
+    }
+
+    // Schreiben der aktualisierten Feedback-Liste zurück in die Datei
+    // Die Feedbacks werden als JSON-String formatiert und in der Datei gespeichert
+    writeFileSync(feedbackFile, JSON.stringify(feedbackList, null, 2), 'utf8');
+
+    // Erfolgreiche Antwort mit dem Status 204 (No Content)
+    // Dies bedeutet, dass das Feedback erfolgreich gelöscht wurde und keine Daten zurückgegeben werden
+    // Der Client erhält eine leere Antwort ohne Inhalt
+    res.status(204).end();
+
+  } catch (error) {
+    console.error('Fehler beim Löschen des Feedbacks:', error); // Protokollieren des Fehlers im Server-Log
+    next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
   }
 });
 
