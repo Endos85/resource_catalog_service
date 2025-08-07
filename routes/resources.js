@@ -187,7 +187,25 @@ router.delete('/:id', (req, res, next) => {
 });
 
 
+// Route zum Suchen von Ressourcen nach type oder authorId
+router.get('/search', (req, res, next) => {
+  try {
+    const { type, authorId } = req.query; // Extrahieren der Suchparameter aus der Query-String
+    const data = readFileSync(data_file, 'utf8'); // Lesen der JSON-Datei, die die Ressourcen enthält
+    const resources = JSON.parse(data); // Parsen der JSON-Daten in ein JavaScript-Objekt
 
-// Exportieren des Routers
+    // Filtern der Ressourcen basierend auf den Suchparametern
+    // Wenn type oder authorId angegeben sind, werden die Ressourcen entsprechend gefiltert
+    // Wenn keine Parameter angegeben sind, werden alle Ressourcen zurückgegeben
+    const filteredResources = resources.filter(r => {
+      return (type ? r.type === type : true) && (authorId ? r.authorId === authorId : true);
+    });
+    res.status(200).json(filteredResources); // Senden der gefilterten Ressourcen als JSON-Antwort zurück an den Client
+  } catch (error) {
+    next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
+  }
+});
+
+
 // Damit kann dieser Router in der server.js-Datei importiert und verwendet werden
 export default router;
