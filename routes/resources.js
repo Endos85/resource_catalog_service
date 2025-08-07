@@ -1,4 +1,4 @@
-// resources.js
+// routes/resources.js
 
 // Importieren der erforderlichen Module
 // Importieren von Express für die Erstellung des Routers
@@ -24,21 +24,34 @@ const __filename = fileURLToPath(import.meta.url); // Aktueller Dateipfad
 const __dirname = path.dirname(__filename); // Erstellen des Pfads zur JSON-Datei, die die Ressourcen enthält
 const data_file = path.join(__dirname, '../data', 'resources.json'); // Pfad zur JSON-Datei mit den Ressourcen
 
+
 // Route zum Abrufen aller Ressourcen
-router.get('/', (req, res) => {
+// Diese Route wird verwendet, um alle Ressourcen abzurufen
+// Sie gibt eine Liste aller verfügbaren Ressourcen zurück
+router.get('/', (req, res, next) => {
   try {
     const data = readFileSync(data_file, 'utf8'); // Lesen der JSON-Datei, die die Ressourcen enthält
     const resources = JSON.parse(data); // Parsen der JSON-Daten in ein JavaScript-Objekt
     res.json(resources);    // Senden der Ressourcen als JSON-Antwort zurück an den Client
     // Erfolgreiche Antwort mit den Ressourcen
   } catch (error) {
-    console.error('Fehler beim Abrufen der Ressourcen:', error);
-    res.status(500).json({ error: 'Failed to read resources' });
+    next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
   }
 });
 
+
+router.get('/force-error', (req, res, next) => {
+  // Manuelles Auslösen eines Fehlers
+  const error = new Error('Dies ist ein erzwungener Serverfehler.');
+  error.status = 500;
+  next(error); // Übergibt den Fehler an die zentrale Fehlerbehandlung
+});
+
+
 // Route zum Abrufen einer Ressource nach ID
-router.get('/:id', (req, res) => {
+// Diese Route wird verwendet, um eine Ressource anhand ihrer ID abzurufen
+// Die ID wird aus den URL-Parametern extrahiert
+router.get('/:id', (req, res, next) => {
   try {
     const data = readFileSync(data_file, 'utf8'); // Lesen der JSON-Datei, die die Ressourcen enthält
     const resources = JSON.parse(data); // Parsen der JSON-Daten in ein JavaScript-Objekt
@@ -52,14 +65,15 @@ router.get('/:id', (req, res) => {
     }
     // Erfolgreiche Antwort mit der gefundenen Ressource oder Fehlermeldung
   } catch (error) {
-    // Fehlerbehandlung für das Lesen der Datei
-    console.error('Fehler beim Aktualisieren der Ressource:', error);
-    res.status(500).json({ error: 'Fehler beim Lesen der Ressource.' });
+    next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
   }
 });
 
+
 // Route zum Erstellen einer neuen Ressource
-router.post('/', (req, res) => {
+// Diese Route wird verwendet, um eine neue Ressource zu erstellen
+// Die Daten für die neue Ressource werden im Request-Body übergeben
+router.post('/', (req, res, next) => {
   try {
     // Extrahieren der neuen Ressourcendaten aus dem Request-Body
     const newData = req.body;
@@ -94,14 +108,15 @@ router.post('/', (req, res) => {
     res.status(201).json(newResource);
 
   } catch (error) {
-    // Fehlerbehandlung für das Schreiben der Datei oder andere unerwartete Fehler
-    console.error('Fehler beim Aktualisieren der Ressource:', error);
-    res.status(500).json({ error: 'Fehler beim Erstellen der Ressource.' });
+    next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
   }
 });
 
 
-router.put('/:id', (req, res) => {  
+// Route zum Aktualisieren einer Ressource nach ID
+// Diese Route wird verwendet, um eine Ressource anhand ihrer ID zu aktualisieren
+// Die ID wird aus den URL-Parametern extrahiert und die neuen Daten aus dem Request-Body
+router.put('/:id', (req, res, next) => {
   try {
     const resourceId = req.params.id; // Extrahieren der Ressourcendaten anhand der ID aus den URL-Parametern
     const updatedData = req.body; // Extrahieren der aktualisierten Ressourcendaten aus dem Request-Body
@@ -140,8 +155,34 @@ router.put('/:id', (req, res) => {
     res.status(200).json(resources[resourceIndex]);
 
   } catch (error) {
-    // Fehlerbehandlung für das Lesen oder Schreiben der Datei
-    res.status(500).json({ error: 'Fehler beim Aktualisieren der Ressource.' });
+    next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
+  }
+});
+
+
+// Route zum Löschen einer Ressource nach ID
+// Diese Route wird verwendet, um eine Ressource anhand ihrer ID zu löschen
+// Die ID wird aus den URL-Parametern extrahiert
+router.delete('/:id', (req, res, next) => {
+  try {
+    const resourceId = req.params.id; // Extrahieren der Ressourcendaten anhand der ID aus den URL-Parametern
+    const data = readFileSync(data_file, 'utf8'); // Lesen der JSON-Datei, die die Ressourcen enthält
+    const resources = JSON.parse(data); // Parsen der JSON-Daten in ein JavaScript-Objekt
+    const resourceIndex = resources.findIndex(r => String(r.id) === resourceId); // Suchen der Ressource mit der angegebenen ID in der Liste der Ressourcen
+    
+    // Überprüfen, ob die Ressource mit der angegebenen ID gefunden wurde
+    // Wenn die Ressource nicht gefunden wurde, wird eine Fehlermeldung mit dem Status 404 (Not Found) zurückgegeben
+    if (resourceIndex === -1) return res.status(404).json({ error: `Ressource mit der ID ${resourceId} nicht gefunden!` });
+
+    // Wenn die Ressource gefunden wurde, wird sie aus der Liste entfernt
+    resources.splice(resourceIndex, 1); // Entfernen der Ressource aus dem Array
+    // Schreiben der aktualisierten Ressourcen zurück in die Datei
+    writeFileSync(data_file, JSON.stringify(resources, null, 2), 'utf8');
+    // Erfolgreiche Antwort mit einer Bestätigung der Löschung
+    res.status(204).send(); // 204 No Content, da keine Daten zurückgegeben werden
+
+  } catch (error) {
+    next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
   }
 });
 
