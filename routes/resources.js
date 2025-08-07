@@ -18,6 +18,11 @@ import { v4 as uuidv4 } from 'uuid';
 // Importieren der Middleware zum Validieren von Ressourcen
 // Diese Middleware wird verwendet, um sicherzustellen, dass die erforderlichen Felder in der Anfrage vorhanden sind
 import validateResource from '../middleware/validateResource.js';
+// Importieren der Middleware zum Validieren von Feedback
+// Diese Middleware wird verwendet, um sicherzustellen, dass das Feedback korrekt formatiert ist
+import validateFeedback from '../middleware/validate-feedback.js';
+// Importieren der Ressourcen-Datei, die die Ressourcen enthält
+import { join } from 'path';
 
 // Erstellen eines Routers mit Express
 const router = express.Router();
@@ -26,6 +31,11 @@ const router = express.Router();
 const __filename = fileURLToPath(import.meta.url); // Aktueller Dateipfad
 const __dirname = path.dirname(__filename); // Erstellen des Pfads zur JSON-Datei, die die Ressourcen enthält
 const data_file = path.join(__dirname, '../data', 'resources.json'); // Pfad zur JSON-Datei mit den Ressourcen
+
+// Variablen für die Feedback-Datei
+const feedbackFile = join(process.cwd(), 'data', 'feedback.json');
+const resourcesFile = join(process.cwd(), 'data', 'resources.json');
+
 
 
 // Route zum Abrufen aller Ressourcen
@@ -203,5 +213,48 @@ router.get('/search', (req, res, next) => {
 });
 
 
-// Damit kann dieser Router in der server.js-Datei importiert und verwendet werden
+// Route zum Speichern von Feedback für eine Ressource
+// Diese Route wird verwendet, um Feedback für eine bestimmte Ressource zu speichern
+// Die Ressource-ID wird aus den URL-Parametern extrahiert und das Feedback aus dem Request-Body
+router.post('/:resourceId/feedback', validateFeedback, (req, res, next) => {
+  const { resourceId } = req.params; // Extrahieren der Ressource-ID aus den URL-Parametern
+  const { feedback_text, user_name } = req.body; // Extrahieren des Feedback-Textes und des Benutzernamens aus dem Request-Body
+
+  
+  try {
+    const resources = JSON.parse(readFileSync(resourcesFile, 'utf8')); // Lesen der Ressourcen aus der Datei
+    const resourceExists = resources.some(r => String(r.id) === resourceId); // Überprüfen, ob die Ressource mit der angegebenen ID existiert
+    // Wenn die Ressource nicht existiert, wird eine Fehlermeldung mit dem Status 404 (Not Found) zurückgegeben
+    if (!resourceExists) {
+      return res.status(404).json({ error: `Ressource mit ID ${resourceId} nicht gefunden.` });
+    }
+    // Wenn die Ressource existiert, wird das Feedback gespeichert
+    // Erstellen eines neuen Feedback-Objekts mit der Ressource-ID, dem Text, dem Benutzernamen und einem Zeitstempel
+    // Der Benutzername wird auf 'anonym' gesetzt, wenn er nicht angegeben ist
+    const newFeedback = {
+      resourceId,
+      feedback_text,
+      user_name: user_name?.trim() || 'anonym',
+      timestamp: new Date().toISOString()
+    };
+
+    const feedbacks = JSON.parse(readFileSync(feedbackFile, 'utf8')); // Lesen der bestehenden Feedbacks aus der Datei
+    feedbacks.push(newFeedback); // Hinzufügen des neuen Feedbacks zur Liste der bestehenden Feedbacks
+    // Schreiben der aktualisierten Feedbacks zurück in die Datei
+    // Die Feedbacks werden als JSON-String formatiert und in der Datei gespeichert
+    writeFileSync(feedbackFile, JSON.stringify(feedbacks, null, 2), 'utf8');
+
+    // Erfolgreiche Antwort mit dem neuen Feedback
+    // Der Status 201 (Created) wird zurückgegeben, um anzuzeigen, dass das Feedback erfolgreich erstellt wurde
+    // Die Antwort enthält das neu erstellte Feedback-Objekt
+    res.status(201).json({ message: 'Feedback gespeichert.', feedback: newFeedback });
+
+  } catch (error) {
+    console.error('Fehler beim Aktualisieren des Feedbacks:', error); // Protokollieren des Fehlers im Server-Log
+    next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
+  }
+});
+
+// Exportieren des Routers, damit er in anderen Dateien verwendet werden kann
+// Dies ermöglicht es, die Routen in der server.js-Datei zu verwenden.
 export default router;
