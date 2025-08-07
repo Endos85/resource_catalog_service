@@ -15,6 +15,9 @@ import { fileURLToPath } from 'url';
 // Importieren der UUID-Bibliothek für die Generierung von eindeutigen IDs
 // Diese Bibliothek wird verwendet, um eindeutige Identifikatoren für neue Ressourcen zu erstellen
 import { v4 as uuidv4 } from 'uuid';
+// Importieren der Middleware zum Validieren von Ressourcen
+// Diese Middleware wird verwendet, um sicherzustellen, dass die erforderlichen Felder in der Anfrage vorhanden sind
+import validateResource from '../middleware/validateResource.js';
 
 // Erstellen eines Routers mit Express
 const router = express.Router();
@@ -73,17 +76,10 @@ router.get('/:id', (req, res, next) => {
 // Route zum Erstellen einer neuen Ressource
 // Diese Route wird verwendet, um eine neue Ressource zu erstellen
 // Die Daten für die neue Ressource werden im Request-Body übergeben
-router.post('/', (req, res, next) => {
+router.post('/', validateResource, (req, res, next) => {
   try {
     // Extrahieren der neuen Ressourcendaten aus dem Request-Body
     const newData = req.body;
-
-    // Überprüfen, ob die erforderlichen Felder "title" und "type" im Request-Body vorhanden sind
-    // Wenn nicht, wird eine Fehlermeldung mit dem Status 400 (Bad Request) zurückgegeben
-    if (!newData.title || !newData.type) {
-      res.status(400).json({ error: 'title und type sind erforderlich.' });
-      return;
-    }
 
     // Generieren einer eindeutigen ID für die neue Ressource
     // Erstellen eines neuen Ressourcenobjekts mit der generierten ID und den übergebenen Daten
