@@ -21,8 +21,9 @@ import validateResource from '../middleware/validateResource.js';
 // Importieren der Middleware zum Validieren von Feedback
 // Diese Middleware wird verwendet, um sicherzustellen, dass das Feedback korrekt formatiert ist
 import validateFeedback from '../middleware/validate-feedback.js';
-// Importieren der Ressourcen-Datei, die die Ressourcen enthält
-import { join } from 'path';
+// Importieren der Middleware zum Validieren von Bewertungen
+// Diese Middleware wird verwendet, um sicherzustellen, dass die Bewertung im Anfrage-Body korrekt formatiert ist
+import { validateRating } from "../middleware/validate-rating.js";
 
 // Erstellen eines Routers mit Express
 const router = express.Router();
@@ -36,7 +37,8 @@ const data_file = path.join(__dirname, '../data', 'resources.json'); // Pfad zur
 const feedbackFile = path.join(__dirname, '../data', 'feedback.json');
 const resourcesFile = path.join(__dirname, '../data', 'resources.json');
 
-
+// Variablen für die Ratings-Datei
+const ratingsFilePath = path.join(process.cwd(), "data", "ratings.json");
 
 // Route zum Abrufen aller Ressourcen
 // Diese Route wird verwendet, um alle Ressourcen abzurufen
@@ -251,7 +253,6 @@ router.post('/:resourceId/feedback', validateFeedback, (req, res, next) => {
     res.status(201).json({ message: 'Feedback gespeichert.', feedback: newFeedback });
 
   } catch (error) {
-    console.error('Fehler beim Aktualisieren des Feedbacks:', error); // Protokollieren des Fehlers im Server-Log
     next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
   }
 });
@@ -295,7 +296,6 @@ router.put('/:resourceId/feedback/:feedbackId', validateFeedback, (req, res, nex
     res.status(200).json(feedback[feedbackIndex]);
 
   } catch (error) {
-      console.error('Fehler beim Aktualisieren des Feedbacks:', error); // Protokollieren des Fehlers im Server-Log
       next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
   }
 });
@@ -337,7 +337,49 @@ router.delete('/:resourceId/feedback/:feedbackId', (req, res, next) => {
     res.status(204).end();
 
   } catch (error) {
-    console.error('Fehler beim Löschen des Feedbacks:', error); // Protokollieren des Fehlers im Server-Log
+    next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
+  }
+});
+
+
+// Route zum Hinzufügen einer Bewertung zu einer Ressource
+// Diese Route wird verwendet, um eine Bewertung für eine bestimmte Ressource zu speichern
+// Die Ressource-ID wird aus den URL-Parametern extrahiert und die Bewertung aus dem Request-Body
+router.post("/:resourceId/rating", validateRating, (req, res, next) => { // middleware zum Validieren der Bewertung wird aufgerufen
+  try {
+    const { resourceId } = req.params; // Extrahieren der Ressource-ID aus den URL-Parametern
+    const { rating, user_name } = req.body; // Extrahieren der Bewertung und des Benutzernamens aus dem Request-Body
+
+    // Überprüfen, ob die Ressource mit der angegebenen ID existiert
+    // Lesen der Ressourcen aus der Datei und Überprüfen, ob die Ressource existiert
+    let ratings = [];
+    if (fs.existsSync(ratingsFilePath)) {
+      ratings = JSON.parse(fs.readFileSync(ratingsFilePath, "utf8"));
+    }
+
+    // Erstellen eines neuen Bewertungsobjekts mit der Ressource-ID, der Bewertung, dem Benutzernamen und einem Zeitstempel
+    const newRating = {
+      ratingId: uuidv4(), // Generieren einer eindeutigen ID für die Bewertung
+      resourceId, // Verknüpfen der Bewertung mit der Ressource-ID
+      rating, // Die Bewertung wird aus dem Request-Body übernommen
+      user_name: user_name || "Anonym", // Der Benutzername wird auf "Anonym" gesetzt, wenn er nicht angegeben ist
+      timestamp: new Date().toISOString() // Aktueller Zeitstempel im ISO-Format
+    };
+
+    // In Array pushen
+    ratings.push(newRating);
+
+    // Datei speichern
+    fs.writeFileSync(ratingsFilePath, JSON.stringify(ratings, null, 2));
+    
+    // Erfolgreiche Antwort mit der neu erstellten Bewertung
+    // Der Status 201 (Created) wird zurückgegeben, um anzuzeigen, dass die Bewertung erfolgreich erstellt wurde
+    // Die Antwort enthält das neu erstellte Bewertungsobjekt
+    res.status(201).json({
+      message: "Bewertung gespeichert",
+      rating: newRating
+    });
+  } catch (error) {
     next(error); // Weiterleiten des Fehlers an die Fehlerbehandlungs-Middleware
   }
 });
