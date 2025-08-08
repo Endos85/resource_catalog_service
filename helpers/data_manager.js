@@ -1,37 +1,22 @@
-// routes/resources.js
 import express from 'express';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import validateResource from '../middleware/validateResource.js';
 import validateFeedback from '../middleware/validate-feedback.js';
 import { validateRating } from '../middleware/validate-rating.js';
 
+import { readJsonFileAsync, writeJsonFileAsync } from '../helpers/data_manager.js';
+
 const router = express.Router();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const resourcesFile = 'resources.json';
+const feedbackFile = 'feedback.json';
+const ratingsFile = 'ratings.json';
 
-const dataDir = path.join(__dirname, '../data');
-
-const resourcesFile = path.join(dataDir, 'resources.json');
-const feedbackFile = path.join(dataDir, 'feedback.json');
-const ratingsFile = path.join(dataDir, 'ratings.json');
-
-
-// Suche (Filter) nach type und authorId
-router.get('/search', (req, res, next) => {
+// Alle Ressourcen ausgeben
+router.get('/', async (req, res, next) => {
   try {
-    const { type, authorId } = req.query;
-    const data = fs.readFileSync(resourcesFile, 'utf8');
-    const resources = JSON.parse(data);
-
-    const filteredResources = resources.filter(r => {
-      return (type ? r.type === type : true) && (authorId ? r.authorId === authorId : true);
-    });
-
-    res.status(200).json(filteredResources);
+    const resources = await readJsonFileAsync(resourcesFile);
+    res.json(resources);
   } catch (error) {
     next(error);
   }
@@ -39,14 +24,11 @@ router.get('/search', (req, res, next) => {
 
 
 // Einzelne Ressource mit Durchschnittsbewertung
-router.get('/:id', (req, res, next) => {
+router.get('/:id', async (req, res, next) => {
   try {
     const resourceId = req.params.id;
-    const resourcesData = fs.readFileSync(resourcesFile, 'utf8');
-    const resources = JSON.parse(resourcesData);
-
-    const ratingsData = fs.readFileSync(ratingsFile, 'utf8');
-    const ratings = JSON.parse(ratingsData);
+    const resources = await readJsonFileAsync(resourcesFile);
+    const ratings = await readJsonFileAsync(ratingsFile);
 
     const resource = resources.find(r => String(r.id) === String(resourceId));
     if (!resource) {
@@ -71,30 +53,17 @@ router.get('/:id', (req, res, next) => {
 });
 
 
-// Alle Ressourcen ausgeben
-router.get('/', (req, res, next) => {
-  try {
-    const data = fs.readFileSync(resourcesFile, 'utf8');
-    const resources = JSON.parse(data);
-    res.json(resources);
-  } catch (error) {
-    next(error);
-  }
-});
-
-
 // Neue Ressource anlegen
-router.post('/', validateResource, (req, res, next) => {
+router.post('/', validateResource, async (req, res, next) => {
   try {
     const newData = req.body;
     const newResource = {
       id: uuidv4(),
       ...newData,
     };
-    const data = fs.readFileSync(resourcesFile, 'utf8');
-    const resources = JSON.parse(data);
+    const resources = await readJsonFileAsync(resourcesFile);
     resources.push(newResource);
-    fs.writeFileSync(resourcesFile, JSON.stringify(resources, null, 2), 'utf8');
+    await writeJsonFileAsync(resourcesFile, resources);
     res.status(201).json(newResource);
   } catch (error) {
     next(error);
@@ -103,7 +72,7 @@ router.post('/', validateResource, (req, res, next) => {
 
 
 // Ressource aktualisieren
-router.put('/:id', (req, res, next) => {
+router.put('/:id', async (req, res, next) => {
   try {
     const resourceId = req.params.id;
     const updatedData = req.body;
@@ -111,8 +80,7 @@ router.put('/:id', (req, res, next) => {
       return res.status(400).json({ error: 'Datei hat keinen Inhalt!' });
     }
 
-    const data = fs.readFileSync(resourcesFile, 'utf8');
-    const resources = JSON.parse(data);
+    const resources = await readJsonFileAsync(resourcesFile);
     const resourceIndex = resources.findIndex(r => String(r.id) === String(resourceId));
     if (resourceIndex === -1) {
       return res.status(404).json({ error: `Ressource mit der ID ${resourceId} nicht gefunden!` });
@@ -122,7 +90,7 @@ router.put('/:id', (req, res, next) => {
       ...resources[resourceIndex],
       ...updatedData,
     };
-    fs.writeFileSync(resourcesFile, JSON.stringify(resources, null, 2), 'utf8');
+    await writeJsonFileAsync(resourcesFile, resources);
     res.status(200).json(resources[resourceIndex]);
   } catch (error) {
     next(error);
@@ -131,18 +99,33 @@ router.put('/:id', (req, res, next) => {
 
 
 // Ressource löschen
-router.delete('/:id', (req, res, next) => {
+router.delete('/:id', async (req, res, next) => {
   try {
     const resourceId = req.params.id;
-    const data = fs.readFileSync(resourcesFile, 'utf8');
-    const resources = JSON.parse(data);
+    const resources = await readJsonFileAsync(resourcesFile);
     const resourceIndex = resources.findIndex(r => String(r.id) === String(resourceId));
     if (resourceIndex === -1) {
       return res.status(404).json({ error: `Ressource mit der ID ${resourceId} nicht gefunden!` });
     }
     resources.splice(resourceIndex, 1);
-    fs.writeFileSync(resourcesFile, JSON.stringify(resources, null, 2), 'utf8');
+    await writeJsonFileAsync(resourcesFile, resources);
     res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Suche (Filter) nach type und authorId
+router.get('/search', async (req, res, next) => {
+  try {
+    const { type, authorId } = req.query;
+    const resources = await readJsonFileAsync(resourcesFile);
+
+    const filteredResources = resources.filter(r => {
+      return (type ? r.type === type : true) && (authorId ? r.authorId === authorId : true);
+    });
+
+    res.status(200).json(filteredResources);
   } catch (error) {
     next(error);
   }
@@ -150,20 +133,17 @@ router.delete('/:id', (req, res, next) => {
 
 
 // Feedback anlegen
-router.post('/:resourceId/feedback', validateFeedback, (req, res, next) => {
+router.post('/:resourceId/feedback', validateFeedback, async (req, res, next) => {
   try {
     const { resourceId } = req.params;
     const { feedback_text, user_name } = req.body;
 
-    const resourcesData = fs.readFileSync(resourcesFile, 'utf8');
-    const resources = JSON.parse(resourcesData);
+    const resources = await readJsonFileAsync(resourcesFile);
     if (!resources.some(r => String(r.id) === String(resourceId))) {
       return res.status(404).json({ error: `Ressource mit ID ${resourceId} nicht gefunden.` });
     }
 
-    const feedbacksData = fs.readFileSync(feedbackFile, 'utf8');
-    const feedbacks = JSON.parse(feedbacksData);
-
+    const feedbacks = await readJsonFileAsync(feedbackFile);
     const newFeedback = {
       feedbackId: uuidv4(),
       resourceId,
@@ -173,7 +153,7 @@ router.post('/:resourceId/feedback', validateFeedback, (req, res, next) => {
     };
 
     feedbacks.push(newFeedback);
-    fs.writeFileSync(feedbackFile, JSON.stringify(feedbacks, null, 2), 'utf8');
+    await writeJsonFileAsync(feedbackFile, feedbacks);
 
     res.status(201).json({ message: 'Feedback gespeichert.', feedback: newFeedback });
   } catch (error) {
@@ -183,13 +163,12 @@ router.post('/:resourceId/feedback', validateFeedback, (req, res, next) => {
 
 
 // Feedback aktualisieren
-router.put('/:resourceId/feedback/:feedbackId', validateFeedback, (req, res, next) => {
+router.put('/:resourceId/feedback/:feedbackId', validateFeedback, async (req, res, next) => {
   try {
     const { resourceId, feedbackId } = req.params;
     const { feedback_text, user_name } = req.body;
 
-    const feedbacksData = fs.readFileSync(feedbackFile, 'utf8');
-    const feedbacks = JSON.parse(feedbacksData);
+    const feedbacks = await readJsonFileAsync(feedbackFile);
     const feedbackIndex = feedbacks.findIndex(f => f.resourceId === resourceId && f.feedbackId === feedbackId);
 
     if (feedbackIndex === -1) {
@@ -203,7 +182,7 @@ router.put('/:resourceId/feedback/:feedbackId', validateFeedback, (req, res, nex
       updatedAt: new Date().toISOString()
     };
 
-    fs.writeFileSync(feedbackFile, JSON.stringify(feedbacks, null, 2), 'utf8');
+    await writeJsonFileAsync(feedbackFile, feedbacks);
     res.status(200).json(feedbacks[feedbackIndex]);
   } catch (error) {
     next(error);
@@ -212,12 +191,10 @@ router.put('/:resourceId/feedback/:feedbackId', validateFeedback, (req, res, nex
 
 
 // Feedback löschen
-router.delete('/:resourceId/feedback/:feedbackId', (req, res, next) => {
+router.delete('/:resourceId/feedback/:feedbackId', async (req, res, next) => {
   try {
     const { resourceId, feedbackId } = req.params;
-
-    const feedbacksData = fs.readFileSync(feedbackFile, 'utf8');
-    let feedbacks = JSON.parse(feedbacksData);
+    let feedbacks = await readJsonFileAsync(feedbackFile);
 
     const initialLength = feedbacks.length;
     feedbacks = feedbacks.filter(f => !(f.resourceId === resourceId && f.feedbackId === feedbackId));
@@ -226,7 +203,7 @@ router.delete('/:resourceId/feedback/:feedbackId', (req, res, next) => {
       return res.status(404).json({ error: 'Feedback nicht gefunden.' });
     }
 
-    fs.writeFileSync(feedbackFile, JSON.stringify(feedbacks, null, 2), 'utf8');
+    await writeJsonFileAsync(feedbackFile, feedbacks);
     res.status(204).end();
   } catch (error) {
     next(error);
@@ -235,16 +212,12 @@ router.delete('/:resourceId/feedback/:feedbackId', (req, res, next) => {
 
 
 // Neue Bewertung anlegen
-router.post('/:resourceId/rating', validateRating, (req, res, next) => {
+router.post('/:resourceId/rating', validateRating, async (req, res, next) => {
   try {
     const { resourceId } = req.params;
     const { rating, user_name } = req.body;
 
-    let ratings = [];
-    if (fs.existsSync(ratingsFile)) {
-      const ratingsData = fs.readFileSync(ratingsFile, 'utf8');
-      ratings = JSON.parse(ratingsData);
-    }
+    const ratings = await readJsonFileAsync(ratingsFile);
 
     const newRating = {
       ratingId: uuidv4(),
@@ -255,7 +228,7 @@ router.post('/:resourceId/rating', validateRating, (req, res, next) => {
     };
 
     ratings.push(newRating);
-    fs.writeFileSync(ratingsFile, JSON.stringify(ratings, null, 2), 'utf8');
+    await writeJsonFileAsync(ratingsFile, ratings);
 
     res.status(201).json({
       message: 'Bewertung gespeichert',

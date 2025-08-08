@@ -11,13 +11,14 @@
     "id": "2",
     "title": "Express.js-Tutorial",
     "type": "Video",
-    "authorId": "a1b2c3d4",
+    "authorId": "12345",
     "url": "http://example.com/expressjs"
   },
   {
     "id": "6af5668a-2394-4277-92f9-527eb5781009",
     "title": "Einführung in Python",
     "type": "Kurs",
+    "authorId": "12345",
     "url": "http://example.com/Python"
   }
 ]
